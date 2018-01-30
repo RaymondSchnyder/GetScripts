@@ -282,7 +282,7 @@ print "Flattening directory: %s" % (dirname)
 for dirpath, dirnames, filenames in os.walk(dirname):
     for fileName in filenames:
         outputFile = os.path.join(dirpath, fileName)
-        if dirpath == dirname
+        if dirpath == dirname:
             continue
         target = os.path.join(dirname, fileName)
         try:
