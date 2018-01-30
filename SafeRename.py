@@ -111,6 +111,27 @@ else:
     sys.exit(0)
 
 # All checks done, now launching the script.
+
+def removeEmptyFolders(path, removeRoot=True):
+    #Function to remove empty folders
+    if not os.path.isdir(path):
+        return
+
+    # remove empty subfolders
+    print "[INFO] Checking for empty folders in:%s" % path
+    files = os.listdir(path)
+    if len(files):
+        for f in files:
+            fullpath = os.path.join(path, f)
+            if os.path.isdir(fullpath):
+                removeEmptyFolders(fullpath)
+
+    # if folder empty, delete it
+    files = os.listdir(path)
+    if len(files) == 0 and removeRoot:
+        print "[INFO] Removing empty folder:%s" % path
+        os.rmdir(path)
+
 def rename_script(dirname):
     rename_file = ""
     new_dir = ""
@@ -185,11 +206,6 @@ def rename_script(dirname):
                 for file in files:
                     os.chmod(os.path.join(dir, file), CHMOD)
 
-        out_dir = os.path.join(os.path.split(dirname)[0], os.path.split(new_dir)[1])
-        if not os.path.exists(out_dir):
-            os.rename(dirname, out_dir)
-            print "[NZB] DIRECTORY=%s" % (out_dir)
-
 def rename_cmd(cmd, dirname):
     if len(cmd) == 2 and os.path.exists(os.path.join(dirname, cmd[0])):
         orig = os.path.join(dirname, cmd[0].replace('\\',os.path.sep).replace('/',os.path.sep))
@@ -262,6 +278,18 @@ def extract_command(cmdin, dir):
     return newcmd
 
 rename_script(dirname)
+print "Flattening directory: %s" % (dirname)
+for dirpath, dirnames, filenames in os.walk(dirname):
+    for fileName in filenames:
+        outputFile = os.path.join(dirpath, fileName)
+        if dirpath == dirname
+            continue
+        target = os.path.join(dirname, fileName)
+        try:
+            shutil.move(outputFile, target)
+        except:
+            print "[ERROR] Could not flatten %s" % outputFile
+removeEmptyFolders(dirname)  # Cleanup empty directories
 if os.environ.has_key('NZBOP_SCRIPTDIR'):
     sys.exit(NZBGET_POSTPROCESS_SUCCESS)
 else:
