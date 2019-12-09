@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 #
 ##############################################################################
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
@@ -21,6 +21,21 @@
 # e.g. .sh,.rar,.zip,.bat
 #CleanUp=.sh,.bat
 
+# Media Extensions
+#
+# This is a list of media extensions that may be deleted if a Sample_id is in the filename.
+mediaExtensions=[".mkv",".avi",".divx",".xvid",".mov",".wmv",".mp4",".mpg",".mpeg",".vob",".iso"]
+
+# maxSampleSize
+#
+# This is the maximum size (in MiB) to be be considered as sample file.
+maxSampleSize=200
+
+# SampleIDs
+#
+# This is a list of identifiers used for samples. e.g sample,-s. Use 'SizeOnly' to delete all media files less than maxSampleSize.
+SampleIDs=["sample","-s."] 
+
 ### NZBGET POST-PROCESSING SCRIPT                                          ###
 ##############################################################################
 import os
@@ -36,44 +51,44 @@ NZBGET_POSTPROCESS_SUCCESS = 93
 NZBGET_POSTPROCESS_ERROR = 94
 NZBGET_POSTPROCESS_NONE = 95
 
-if 'NZBOP_SCRIPTDIR' in os.environ:
+if os.environ.has_key('NZBOP_SCRIPTDIR'):
     if os.environ['NZBOP_VERSION'][0:5] < '11.0':
-        print("[ERROR] NZBGet Version %s is not supported. Please update NZBGet." % (str(os.environ['NZBOP_VERSION'])))
+        print "[ERROR] NZBGet Version %s is not supported. Please update NZBGet." % (str(os.environ['NZBOP_VERSION']))
         sys.exit(0)
 
-    print("Script triggered from NZBGet Version %s." % (str(os.environ['NZBOP_VERSION'])))
+    print "Script triggered from NZBGet Version %s." % (str(os.environ['NZBOP_VERSION']))
     status = 0
-    if 'NZBPP_TOTALSTATUS' in os.environ:
+    if os.environ.has_key('NZBPP_TOTALSTATUS'):
         if not os.environ['NZBPP_TOTALSTATUS'] == 'SUCCESS':
-            print("[ERROR] Download failed with status %s." % (os.environ['NZBPP_STATUS']))
+            print "[ERROR] Download failed with status %s." % (os.environ['NZBPP_STATUS'])
             status = 1
 
     else:
         # Check par status
         if os.environ['NZBPP_PARSTATUS'] == '1' or os.environ['NZBPP_PARSTATUS'] == '4':
-            print("[ERROR] Par-repair failed, setting status \"failed\".")
+            print "[ERROR] Par-repair failed, setting status \"failed\"."
             status = 1
 
         # Check unpack status
         if os.environ['NZBPP_UNPACKSTATUS'] == '1':
-            print("[ERROR] Unpack failed, setting status \"failed\".")
+            print "[ERROR] Unpack failed, setting status \"failed\"."
             status = 1
 
         if os.environ['NZBPP_UNPACKSTATUS'] == '0' and os.environ['NZBPP_PARSTATUS'] == '0':
             # Unpack was skipped due to nzb-file properties or due to errors during par-check
 
             if os.environ['NZBPP_HEALTH'] < 1000:
-                print("[ERROR] Download health is compromised and Par-check/repair disabled or no .par2 files found. Setting status \"failed\".")
-                print("[ERROR] Please check your Par-check/repair settings for future downloads.")
+                print "[ERROR] Download health is compromised and Par-check/repair disabled or no .par2 files found. Setting status \"failed\"."
+                print "[ERROR] Please check your Par-check/repair settings for future downloads."
                 status = 1
 
             else:
-                print("[ERROR] Par-check/repair disabled or no .par2 files found, and Unpack not required. Health is ok so handle as though download successful.")
-                print("[WARNING] Please check your Par-check/repair settings for future downloads.")
+                print "[ERROR] Par-check/repair disabled or no .par2 files found, and Unpack not required. Health is ok so handle as though download successful."
+                print "[WARNING] Please check your Par-check/repair settings for future downloads."
 
     # Check if destination directory exists (important for reprocessing of history items)
     if not os.path.isdir(os.environ['NZBPP_DIRECTORY']):
-        print("[ERROR] Nothing to post-process: destination directory", os.environ['NZBPP_DIRECTORY'], "doesn't exist. Setting status \"failed\".")
+        print "[ERROR] Nothing to post-process: destination directory", os.environ['NZBPP_DIRECTORY'], "doesn't exist. Setting status \"failed\"."
         status = 1
 
     if status == 1:
@@ -96,8 +111,9 @@ elif len(sys.argv) >= 8:
     # 7 Status of post processing. 0 = OK, 1=failed verification, 2=failed unpack, 3=1+2
     # 8 Failure URL
     clientAgent = 'sabnzbd'
-    print("Script triggered from SABnzbd")
+    print "Script triggered from SABnzbd"
     dirname = sys.argv[1]
+    nzbname = sys.argv[2]
     status = sys.argv[7]
 
     CHMOD = int("0775", 8)
@@ -107,7 +123,7 @@ elif len(sys.argv) >= 8:
         sys.exit(0)
 
 else:
-    print("[ERROR] This script only supports NZBGet or SABnzbd. Exiting.")
+    print "[ERROR] This script only supports NZBGet or SABnzbd. Exiting."
     sys.exit(0)
 
 # All checks done, now launching the script.
@@ -132,13 +148,26 @@ def removeEmptyFolders(path, removeRoot=True):
         print "[INFO] Removing empty folder:%s" % path
         os.rmdir(path)
 
+def is_sample(filePath, inputName, maxSampleSize, SampleIDs):
+    # 200 MB in bytes
+    SIZE_CUTOFF = int(maxSampleSize) * 1024 * 1024
+    if os.path.getsize(filePath) < SIZE_CUTOFF:
+        if 'SizeOnly' in SampleIDs:
+            return True
+        # Ignore 'sample' in files unless 'sample' in Torrent Name
+        for ident in SampleIDs:
+            if ident.lower() in filePath.lower() and not ident.lower() in inputName.lower(): 
+                return True
+    # Return False if none of these were met.
+    return False
+  
 def rename_script(dirname):
     rename_file = ""
     new_dir = ""
     new_dir2 = ""
     for dir, dirs, files in os.walk(dirname):
         for file in files:
-            if re.search('(rename\S*\.(sh|bat)$)',file,re.IGNORECASE) or file == 'What.sh':
+            if re.search('(?i)(rename\S*\.(sh|bat)$)',file,re.IGNORECASE) or file == 'What.sh':
                 rename_file = os.path.join(dir, file)
                 dirname = dir
                 break
@@ -150,7 +179,7 @@ def rename_script(dirname):
             if re.search('^(unrar)', line, re.IGNORECASE):
                 cmd = extract_command(shlex.split(line), dirname)
                 devnull = open(os.devnull, 'w')
-                print("[INFO] Extracting file %s with command %s" % (rename_file, cmd))
+                print "[INFO] Extracting file %s with command %s" % (rename_file, cmd)
                 pwd = os.getcwd()  # Get our Present Working Directory
                 os.chdir(dirname)  # Not all unpack commands accept full paths, so just extract into this directory
                 p = Popen(cmd, stdout=devnull, stderr=devnull)  # should extract files fine.
@@ -158,27 +187,27 @@ def rename_script(dirname):
                 devnull.close()
                 os.chdir(pwd)
                 if res == 0:
-                    print("[INFO] Extraction was successfull")
+                    print "[INFO] Extraction was successfull"
                 else:
-                    print("[INFO] Extraction failed")
+                    print "[INFO] Extraction failed"
                     sys.exit(NZBGET_POSTPROCESS_ERROR)
                 newfile = os.path.splitext(cmd[-1])[0] + os.path.splitext(rename_file)[1]
-                print("[INFO] Checking for file %s" % (os.path.join(dirname, newfile)))
+                print "[INFO] Checking for file %s" % (os.path.join(dirname, newfile))
                 if os.path.isfile(os.path.join(dirname, newfile)):
-                    print("[INFO] Reading lines from %s" % (os.path.join(dirname, newfile)))
+                    print "[INFO] Reading lines from %s" % (os.path.join(dirname, newfile)) 
                     rename_lines2 = [line2.strip() for line2 in open(os.path.join(dirname, newfile))]
-                    print("[INFO] Parsing %s lines from %s" % (str(len(rename_lines2)), os.path.join(dirname, newfile)))
+                    print "[INFO] Parsing %s lines from %s" % (str(len(rename_lines2)), os.path.join(dirname, newfile))
                     for line2 in rename_lines2:
                         if re.search('^(mv|Move)', line2, re.IGNORECASE):
                             new_dir2 = rename_cmd(shlex.split(line2)[1:], dirname)
                         if re.search('^(mkdir)', line2, re.IGNORECASE):
                             new_dir = os.path.join(dirname, shlex.split(line2)[-1])
-                            print("[INFO] Creating directory %s" % (new_dir))
+                            print "[INFO] Creating directory %s" % (new_dir)
                             if os.path.isdir(new_dir):
                                 continue
                             os.makedirs(new_dir)
                 else:
-                    print("[INFO] File %s not found" % (os.path.join(dirname, newfile)))
+                    print "[INFO] File %s not found" % (os.path.join(dirname, newfile))
             else:
                 continue
 
@@ -189,7 +218,7 @@ def rename_script(dirname):
                 try:
                     os.unlink(filepath)
                 except:
-                    print("Error: unable to delete file", filePath)
+                    print "Error: unable to delete file", filePath
 
     if not new_dir and new_dir2:
         if os.path.split(new_dir2)[0] == dirname:
@@ -198,7 +227,7 @@ def rename_script(dirname):
             new_dir = os.path.split(new_dir2)[0]
     if new_dir:
         if CHMOD:
-            print("[INFO] Changing file mode of {0} to {1}".format(new_dir, oct(CHMOD)))
+            print "[INFO] Changing file mode of {0} to {1}".format(new_dir, oct(CHMOD))
             os.chmod(new_dir, CHMOD)
             for dir, dirs, files in os.walk(new_dir):
                 for dirname in dirs:
@@ -206,31 +235,25 @@ def rename_script(dirname):
                 for file in files:
                     os.chmod(os.path.join(dir, file), CHMOD)
 
-        out_dir = os.path.join(os.path.split(dirname)[0], os.path.split(new_dir)[1])
-        if not os.path.exists(out_dir):
-            os.rename(dirname, out_dir)
-            print("[NZB] DIRECTORY=%s" % (out_dir))
-
 def rename_cmd(cmd, dirname):
     if len(cmd) == 2 and os.path.exists(os.path.join(dirname, cmd[0])):
         orig = os.path.join(dirname, cmd[0].replace('\\',os.path.sep).replace('/',os.path.sep))
         dest = os.path.join(dirname, cmd[1].replace('\\',os.path.sep).replace('/',os.path.sep))
         if os.path.isfile(dest):
             return
-        print("[INFO] Renaming file %s to %s" % (orig, dest))
+        print "[INFO] Renaming file %s to %s" % (orig, dest)
         try:
             if not os.path.exists(os.path.split(dest)[0]):
                 os.makedirs(os.path.split(dest)[0])
             os.rename(orig, dest)
             return dest
-        except Exception as e:
-            print("[ERROR] Unable to rename file due to: %s" % (str(e)))
+        except Exception,e:
+            print "[ERROR] Unable to rename file due to: %s" % (str(e))
             sys.exit(NZBGET_POSTPROCESS_ERROR)
 
 def extract_command(cmdin, dir):
     # Using Windows
     if platform.system() == 'Windows':
-        SEVENZIP = "C:\\Program Files\\7-Zip\\7z.exe"
         if not os.path.exists(SEVENZIP):
             print(" Could not find 7-zip, Exiting")
             sys.exit(NZBGET_POSTPROCESS_ERROR)
@@ -255,7 +278,7 @@ def extract_command(cmdin, dir):
         for cmd in required_cmds:
             if call(['which', cmd], stdout=devnull,
                     stderr=devnull):  # note, returns 0 if exists, or 1 if doesn't exist.
-                for k, v in list(EXTRACT_COMMANDS.items()):
+                for k, v in EXTRACT_COMMANDS.items():
                     if cmd in v[0]:
                         if not call(["which", "7zr"], stdout=devnull, stderr=devnull):  # we do have "7zr"
                             EXTRACT_COMMANDS[k] = ["7zr", "x", "-y"]
@@ -264,7 +287,7 @@ def extract_command(cmdin, dir):
                         elif not call(["which", "7za"], stdout=devnull, stderr=devnull):  # we do have "7za"
                             EXTRACT_COMMANDS[k] = ["7za", "x", "-y"]
                         else:
-                            print(("%s not found, disabling support for %s" % (cmd, k)))
+                            print("%s not found, disabling support for %s" % (cmd, k))
                             del EXTRACT_COMMANDS[k]
         devnull.close()
 
@@ -288,6 +311,14 @@ print "Flattening directory: %s" % (dirname)
 for dirpath, dirnames, filenames in os.walk(dirname):
     for fileName in filenames:
         outputFile = os.path.join(dirpath, fileName)
+        if fileExtension in mediaExtensions or ".*" in mediaExtensions: # If the file is a video file
+            if is_sample(outputFile, nzbname, maxSampleSize, SampleIDs):
+                print("Deleting sample file: ", outputFile)
+                try:
+                    os.unlink(outputFile)
+                except:
+                    print("ERROR: unable to delete sample file", outputFile)
+                    sys.exit(1)
         if dirpath == dirname:
             continue
         target = os.path.join(dirname, fileName)
@@ -296,7 +327,7 @@ for dirpath, dirnames, filenames in os.walk(dirname):
         except:
             print "[ERROR] Could not flatten %s" % outputFile
 removeEmptyFolders(dirname)  # Cleanup empty directories
-if 'NZBOP_SCRIPTDIR' in os.environ:
+if os.environ.has_key('NZBOP_SCRIPTDIR'):
     sys.exit(NZBGET_POSTPROCESS_SUCCESS)
 else:
     sys.exit(0)
