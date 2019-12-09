@@ -309,8 +309,9 @@ def extract_command(cmdin, dir):
 rename_script(dirname)
 print "Flattening directory: %s" % (dirname)
 for dirpath, dirnames, filenames in os.walk(dirname):
-    for fileName in filenames:
-        outputFile = os.path.join(dirpath, fileName)
+    for file in filenames:
+        outputFile = os.path.join(dirpath, file)
+        fileName, fileExtension = os.path.splitext(file)
         if fileExtension in mediaExtensions or ".*" in mediaExtensions: # If the file is a video file
             if is_sample(outputFile, nzbname, maxSampleSize, SampleIDs):
                 print("Deleting sample file: ", outputFile)
@@ -321,7 +322,7 @@ for dirpath, dirnames, filenames in os.walk(dirname):
                     sys.exit(1)
         if dirpath == dirname:
             continue
-        target = os.path.join(dirname, fileName)
+        target = os.path.join(dirname, file)
         try:
             shutil.move(outputFile, target)
         except:
